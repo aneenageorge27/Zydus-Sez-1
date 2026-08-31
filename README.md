@@ -5,19 +5,24 @@ implemented from the Figma frame
 [`Frame 1000004277`](https://www.figma.com/design/3abjmjs7Yzzhzsjtrb3p2z/Zydus?node-id=4142-84514)
 (node `4142:84514`).
 
-Built with [Vite](https://vite.dev). Needs Node 20.19+ or 22.12+.
+A [Next.js](https://nextjs.org) app (App Router) that builds to a **static
+export**. Needs Node 18.18+, 19.8+ or 20+.
 
 ```sh
 npm install
-npm run dev        # → http://localhost:5173, with hot reload
-npm run build      # → dist/
-npm run preview    # serve dist/ to check the build
+npm run dev        # → http://localhost:3000, with hot reload
+npm run build      # → out/, plain HTML/CSS/JS for any static host
+npm run preview    # serve out/ to check the build
 ```
 
-Vite is the only dependency: the diagram itself is plain ES modules with no
-framework and no runtime library. Every URL in a build is relative, so `dist/`
-runs from wherever it is served — the root of a static host, or `/<repo>/` on
-GitHub Pages — with no rebuild in between.
+`next build` writes `out/` — there is no server to run, since the diagram is a
+canvas over a model that ships with the page.
+
+Next.js supplies the page shell and the build; the diagram itself is plain ES
+modules in `js/`, with no framework and no runtime library. `app/page.js`
+renders the same elements the canvas has always been drawn into and then, once
+mounted, imports `js/app.js` — which is why the diagram's code is untouched by
+the framework and could be lifted back out of it whole.
 
 ## Interaction
 
@@ -102,20 +107,26 @@ last word on where the canvas sits.
 ## Structure
 
 ```
-index.html            page shell, header — Vite's entry point
-vite.config.js        relative base, dist/ output, bundles under dist/bundle/
+app/layout.js         <html>, the font links, the page title
+app/page.js           the shell — header, canvas, hint — then imports js/app.js
+next.config.mjs       output: 'export', so a build lands in out/
 css/styles.css        design tokens + card, chevron, bus, header and canvas styles
 js/data.js            the tree: every card, colour pair and connection
 js/layout.js          contour-based tidy-tree layout (incl. the 415 V bus)
 js/app.js             canvas pan/zoom, accordion, rendering, tweening
 js/search.js          header search: match, rank and list the meters
-public/assets/        SVGs exported from Figma, copied to dist/assets/ as they are
+public/assets/        SVGs exported from Figma, copied to out/assets/ as they are
 ```
+
+`js/app.js` reads the DOM and starts drawing the moment it is evaluated, so
+`app/page.js` imports it from an effect rather than at the top of the file —
+after the shell is on screen, and never while the page is being rendered on
+the server.
 
 The SVGs live under `public/` because the code builds their URLs at runtime
 (`assets/meter-${tone}.svg`), which no bundler can rewrite — `public/` is the
-one place Vite copies through untouched, so the same path works in dev and in
-a build.
+one place Next copies through untouched, so the same path works in dev and in
+an export.
 
 ### Data model (`js/data.js`)
 

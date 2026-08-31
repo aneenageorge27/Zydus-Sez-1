@@ -1,7 +1,7 @@
 node_modules
-dist
+.next
+out
 *.local
-.vite
 
 .DS_Store
 Thumbs.db
