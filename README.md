@@ -5,20 +5,24 @@ implemented from the Figma frame
 [`Frame 1000004277`](https://www.figma.com/design/3abjmjs7Yzzhzsjtrb3p2z/Zydus?node-id=4142-84514)
 (node `4142:84514`).
 
-No build step and no dependencies — open `index.html` through any static server:
+Built with [Vite](https://vite.dev). Needs Node 20.19+ or 22.12+.
 
 ```sh
-python3 -m http.server 8000
-# → http://localhost:8000
+npm install
+npm run dev        # → http://localhost:5173, with hot reload
+npm run build      # → dist/
+npm run preview    # serve dist/ to check the build
 ```
 
-(A server is needed because the app uses native ES modules; opening the file
-directly over `file://` will be blocked by the browser.)
+Vite is the only dependency: the diagram itself is plain ES modules with no
+framework and no runtime library. Every URL in a build is relative, so `dist/`
+runs from wherever it is served — the root of a static host, or `/<repo>/` on
+GitHub Pages — with no rebuild in between.
 
 ## Interaction
 
 The header carries the title and meter count on the left, the search field in
-the middle and the canvas controls on the right; below about 1120 px the search
+the middle and the canvas controls on the right; below about 1000 px the search
 drops to its own row, and below 720 px the buttons keep their icons and give up
 their captions.
 
@@ -44,7 +48,7 @@ left as it was — then travels to the card, zooming in far enough to read it if
 the reader was further out than that, and rings it until they move on.
 
 Panning is unbounded — the canvas has no edges. Zoom runs from 1 % to 1200 %.
-Loading `index.html#collapsed` starts with every branch off the bus folded.
+Loading the page with `#collapsed` starts with every branch off the bus folded.
 
 ### Accordion
 
@@ -98,14 +102,20 @@ last word on where the canvas sits.
 ## Structure
 
 ```
-index.html            page shell, header
+index.html            page shell, header — Vite's entry point
+vite.config.js        relative base, dist/ output, bundles under dist/bundle/
 css/styles.css        design tokens + card, chevron, bus, header and canvas styles
 js/data.js            the tree: every card, colour pair and connection
 js/layout.js          contour-based tidy-tree layout (incl. the 415 V bus)
 js/app.js             canvas pan/zoom, accordion, rendering, tweening
 js/search.js          header search: match, rank and list the meters
-assets/               SVGs exported from Figma
+public/assets/        SVGs exported from Figma, copied to dist/assets/ as they are
 ```
+
+The SVGs live under `public/` because the code builds their URLs at runtime
+(`assets/meter-${tone}.svg`), which no bundler can rewrite — `public/` is the
+one place Vite copies through untouched, so the same path works in dev and in
+a build.
 
 ### Data model (`js/data.js`)
 
@@ -118,7 +128,7 @@ can be diffed. Each node is:
 
 * `tone` indexes `TONES`, the bg/border colour pairs used in the design. The
   border doubles as the tone's solid colour: the chevron under a card takes it,
-  and the card's meter icon is the matching `assets/meter-<tone>.svg` export.
+  and the card's meter icon is the matching `public/assets/meter-<tone>.svg` export.
 * `edgeSymbol` puts a transformer symbol on the link **into** that node.
 * `tieTo` draws the extra connection a UPS bypass makes back into its output
   section — the one place the diagram is not a pure tree.
@@ -160,7 +170,7 @@ correctly.
 
 ## Assets
 
-`assets/` holds the SVGs exported from the Figma file, used at their designed
+`public/assets/` holds the SVGs exported from the Figma file, used at their designed
 sizes:
 
 | File | Used for | Size |

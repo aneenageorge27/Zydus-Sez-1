@@ -1,0 +1,15 @@
+{
+  "name": "zydus-sez-1-sld",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zydus SEZ-1 — an interactive single line diagram on an infinite canvas",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  }
+}
