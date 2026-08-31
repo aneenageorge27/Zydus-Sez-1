@@ -682,6 +682,13 @@ function updateWorldSize(bounds) {
 /* ------------------------------------------------------------------ *
  * Accordion
  * ------------------------------------------------------------------ */
+/** Shut every section in `run`, so the level above it opens on its own. */
+function foldAll(run) {
+  for (const node of run) {
+    if (isCollapsible(node)) collapsed.add(node.uid);
+  }
+}
+
 /**
  * Open the section under `IN HT MAIN` in one click: the bus bar, its incomer
  * chains and every outgoing feeder through to `42FA OG SPARE-2` — and no
@@ -689,16 +696,25 @@ function updateWorldSize(bounds) {
  */
 function expandSection() {
   collapsed.delete(SECTION.uid);
-  for (const feeder of BUS.children) {
-    if (isCollapsible(feeder)) collapsed.add(feeder.uid);
-  }
+  foldAll(BUS.children);
+}
+
+/**
+ * Open one level: the meters wired directly below the card, each of them shut
+ * in turn. Opening a card is always a fresh step down the hierarchy — folding
+ * a section away drops what was open inside it rather than remembering it, so
+ * a card never springs back to a shape the reader has since collapsed.
+ */
+function expandOneLevel(node) {
+  collapsed.delete(node.uid);
+  foldAll(node.children);
 }
 
 function toggle(node) {
   const folding = !collapsed.has(node.uid);
   if (folding) collapsed.add(node.uid);
   else if (node === SECTION) expandSection();
-  else collapsed.delete(node.uid);
+  else expandOneLevel(node);
   /* Opening grows the section around the card that was clicked; folding one
      away travels back to that card if its branch took the view with it. */
   render(true, { node, mode: folding ? 'reveal' : 'pin' });

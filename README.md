@@ -48,10 +48,18 @@ Loading `index.html#collapsed` starts with every branch off the bus folded.
 
 ### Accordion
 
-Every parent node carries the chevron from the design. Clicking it hides or
-reveals that node's **complete connected section** — the whole subtree below it,
-not just its direct children. Collapsed cards show a `+N` badge with the number
-of nodes folded away.
+Every parent node carries the chevron from the design. Collapsing hides that
+node's **complete connected section** — the whole subtree below it, not just its
+direct children — and the card then shows a `+N` badge with the number of nodes
+folded away.
+
+Expanding goes the other way, **one level at a time**: it reveals the meters
+wired directly below the card, each of them shut in turn. Opening a card is
+always a fresh step down the hierarchy — folding a section away drops what was
+open inside it rather than remembering it, so a card never springs back to a
+shape the reader has since collapsed. After *Expand all*, collapsing
+`IN 11KV INCOMER-1` and clicking it again gives you its four outgoing meters,
+not the 150 cards that were on screen before.
 
 Two nodes are special:
 
