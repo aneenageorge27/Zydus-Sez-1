@@ -1,0 +1,679 @@
+/* ------------------------------------------------------------------ *
+   Zydus SEZ-1 SLD — design tokens taken from the Figma library
+ * ------------------------------------------------------------------ */
+:root {
+  --font-type-noto-sans: 'Noto Sans', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --font-size-100: 14px;
+  --line-height-100: 20px;
+  --letter-spacing-100: 0px;
+  --font-weight-500: 500;
+
+  --colors-other-white: #ffffff;
+  --colors-charcoal-blue-700: #2f4050;
+  --colors-text: #323232;
+
+  --card-radius: 8px;
+  --card-border-w: 1.5px;
+  --card-pad: 12px;
+  --card-gap: 8px;
+  --card-w: 240px;
+  --icon-size: 40px;
+  --chevron-size: 20px;
+
+  --stroke: #000000;
+  --stroke-w: 1.5px;
+
+  --surface: #ffffff;
+  --panel: rgba(255, 255, 255, 0.92);
+  --panel-border: #dde3e9;
+  --panel-shadow: 0 6px 24px rgba(15, 32, 48, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--colors-text);
+  font-family: var(--font-type-noto-sans);
+  font-size: var(--font-size-100);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The header takes the height it needs and the canvas takes the rest, so a
+   bar that wraps on a narrow window never covers the diagram. */
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------------ *
+   Infinite canvas
+ * ------------------------------------------------------------------ */
+#viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background-color: var(--surface);
+}
+
+#viewport.is-panning {
+  cursor: grabbing;
+}
+
+#world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+#wires {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+#wires path,
+#wires line {
+  fill: none;
+  stroke: var(--stroke);
+  stroke-width: var(--stroke-w);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+}
+
+#wires .bus-bar {
+  stroke-width: 3px;
+}
+
+
+/* ------------------------------------------------------------------ *
+   Card — 1:1 with `Component 361…517` in the Figma file
+ * ------------------------------------------------------------------ */
+.node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--card-w);
+  will-change: transform;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--card-gap);
+  padding: var(--card-pad);
+  border: var(--card-border-w) solid var(--node-border);
+  border-radius: var(--card-radius);
+  background: var(--node-bg);
+  overflow: hidden;
+  cursor: default;
+}
+
+.card:hover {
+  box-shadow: 0 2px 10px rgba(15, 32, 48, 0.13);
+}
+
+/* The card a search landed on, ringed until the reader moves on. */
+.node.is-found .card {
+  outline: 3px solid #1e69f5;
+  outline-offset: 3px;
+  animation: found-pulse 1.7s ease-out 2;
+}
+
+@keyframes found-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(30, 105, 245, 0.5);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 16px rgba(30, 105, 245, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node.is-found .card {
+    animation: none;
+  }
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.card__icon {
+  flex: none;
+  display: block;
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+
+.card__title {
+  flex: 1 0 0;
+  min-width: 0;
+  margin: 0;
+  font-weight: var(--font-weight-500);
+  font-size: var(--font-size-100);
+  line-height: var(--line-height-100);
+  letter-spacing: var(--letter-spacing-100);
+  color: var(--colors-text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.card__metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  justify-content: center;
+  width: 100%;
+  padding: 0 4px;
+}
+
+.card__rule {
+  width: 100%;
+  height: 1px;
+  background: var(--colors-charcoal-blue-700);
+}
+
+.card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-weight: var(--font-weight-500);
+  font-size: var(--font-size-100);
+  line-height: var(--line-height-100);
+  color: var(--colors-text);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ *
+   Accordion chevron — the icon placed in the design
+ * ------------------------------------------------------------------ */
+.toggle {
+  position: absolute;
+  left: 50%;
+  width: var(--chevron-size);
+  height: var(--chevron-size);
+  margin-left: calc(var(--chevron-size) / -2);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  z-index: 2;
+}
+
+/* The chevron takes the solid colour of the meter it belongs to. */
+.toggle__icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin: -1px;
+  color: var(--node-border);
+  transition: transform 0.22s ease;
+}
+
+.toggle[aria-expanded='false'] .toggle__icon {
+  transform: rotate(180deg);
+}
+
+.toggle:hover .toggle__icon {
+  filter: drop-shadow(0 0 3px rgba(47, 64, 80, 0.45));
+}
+
+.toggle:focus-visible {
+  outline: 2px solid #1e69f5;
+  outline-offset: 2px;
+}
+
+.toggle__count {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--colors-charcoal-blue-700);
+  color: #fff;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ *
+   Bus bar and symbols
+ * ------------------------------------------------------------------ */
+/* The bus element is a zero-width anchor sitting at the centre of the bar. */
+.node--bus {
+  width: 0;
+  --bar-half: 0px;
+}
+
+.bus-label {
+  position: absolute;
+  left: calc(var(--bar-half) * -1);
+  top: -22px;
+  padding: 1px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--colors-other-white);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--colors-charcoal-blue-700);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sym {
+  position: absolute;
+  pointer-events: none;
+}
+
+.sym img {
+  display: block;
+}
+
+.sym__label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--colors-text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sym--transformer .sym__label {
+  left: calc(100% + 8px);
+  top: 50%;
+  bottom: auto;
+  width: 118px;
+  transform: translateY(-50%);
+  text-align: left;
+  white-space: normal;
+}
+
+/* ------------------------------------------------------------------ *
+   Header — title left, search between, controls right
+
+   The title and the controls take exactly what they need; the search field
+   takes the whole span left between them.
+ * ------------------------------------------------------------------ */
+.topbar {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: auto minmax(200px, 1fr) auto;
+  grid-template-areas: 'lead search tools';
+  align-items: center;
+  gap: 10px 20px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--surface);
+}
+
+.topbar__lead {
+  grid-area: lead;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar__lead h1 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--colors-charcoal-blue-700);
+  white-space: nowrap;
+}
+
+.topbar__lead h1 span {
+  font-weight: 500;
+  color: #6b7785;
+}
+
+.chip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #6b7785;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* ---- search ------------------------------------------------------ */
+.topbar__search {
+  grid-area: search;
+  position: relative;
+  justify-self: stretch;
+}
+
+.search__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: #8a95a1;
+  pointer-events: none;
+}
+
+#search {
+  width: 100%;
+  height: 38px;
+  padding: 0 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--colors-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+#search::placeholder {
+  color: #98a2ad;
+}
+
+#search:focus {
+  outline: none;
+  border-color: #1e69f5;
+  box-shadow: 0 0 0 3px rgba(30, 105, 245, 0.16);
+}
+
+.search__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #8a95a1;
+  cursor: pointer;
+}
+
+.search__clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* `display` here would otherwise beat the UA's rule for the hidden button. */
+.search__clear[hidden] {
+  display: none;
+}
+
+.search__clear:hover {
+  background: rgba(47, 64, 80, 0.09);
+  color: var(--colors-charcoal-blue-700);
+}
+
+.results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  max-height: min(60vh, 420px);
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--panel-shadow);
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.result:hover,
+.result[aria-selected='true'] {
+  background: rgba(30, 105, 245, 0.09);
+}
+
+/* The meter's own colour pair, so a row reads as the card it will land on. */
+.result__tone {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid;
+  border-radius: 4px;
+}
+
+.result__text {
+  min-width: 0;
+}
+
+.result__title,
+.result__path {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.result__title {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--colors-charcoal-blue-700);
+}
+
+.result__path {
+  font-size: 11px;
+  line-height: 15px;
+  color: #8a95a1;
+}
+
+.result mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: #ffeeb0;
+  color: inherit;
+}
+
+.results__empty {
+  padding: 12px 10px;
+  color: #8a95a1;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---- controls ---------------------------------------------------- */
+.topbar__tools {
+  grid-area: tools;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.topbar__tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--colors-charcoal-blue-700);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.topbar__tools button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.topbar__tools button:hover {
+  background: rgba(47, 64, 80, 0.09);
+}
+
+.topbar__tools button:focus-visible,
+#search:focus-visible {
+  outline: 2px solid #1e69f5;
+  outline-offset: 1px;
+}
+
+.topbar__tools .sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--panel-border);
+}
+
+#zoomLevel {
+  min-width: 48px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: #6b7785;
+}
+
+.hint {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 7px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--panel-shadow);
+  font-size: 12px;
+  line-height: 16px;
+  color: #6b7785;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--panel-border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  color: var(--colors-charcoal-blue-700);
+}
+
+#measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  width: var(--card-w);
+}
+
+/* Shown instead of a blank canvas if the diagram cannot be built. */
+.boot-error {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 20;
+  max-width: 32rem;
+  transform: translate(-50%, -50%);
+  padding: 14px 18px;
+  border: 1px solid #f3b0c0;
+  border-radius: 12px;
+  background: #fff5f7;
+  color: #8a1c3b;
+  font-size: 13px;
+  line-height: 19px;
+  box-shadow: var(--panel-shadow);
+}
+
+/* Measured free of the absolute positioning `.sym__label` normally has. */
+.sym__label--probe {
+  position: static;
+  transform: none;
+  display: inline-block;
+}
+
+/* ------------------------------------------------------------------ *
+   Header at narrower widths: the search drops to its own row, then the
+   button captions give way to their icons.
+ * ------------------------------------------------------------------ */
+@media (max-width: 1000px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'lead tools'
+      'search search';
+  }
+}
+
+@media (max-width: 720px) {
+  .hint {
+    display: none;
+  }
+
+  .topbar__lead h1 span,
+  .chip {
+    display: none;
+  }
+
+  .topbar__tools button span {
+    display: none;
+  }
+
+  .topbar__tools button {
+    padding: 0 8px;
+  }
+}
