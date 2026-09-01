@@ -7,7 +7,7 @@
  *  · Positions are tweened here so cards and wires stay in lock-step.
  */
 
-import { ROOT, TONES, walk } from './data.js';
+import { ROOT, TONES, ZONES, walk } from './data.js';
 import { layout, NODE_W, SYMBOL_H, SYMBOL_W, isCollapsible } from './layout.js';
 import { initSearch } from './search.js';
 
@@ -40,6 +40,12 @@ walk(ROOT, (node, parent) => {
   byId.set(node.id, node);
   parentOf.set(node.uid, parent);
 });
+
+/** Each zone's groups resolved to node objects, once, at startup. */
+const zoneDefs = ZONES.map((zone) => ({
+  ...zone,
+  groups: zone.groups.map((ids) => ids.map((id) => byId.get(id))),
+}));
 
 const descendantCount = new Map();
 (function countDescendants(node) {
@@ -138,7 +144,26 @@ const busSlotWidth = (item) => {
  * ------------------------------------------------------------------ */
 const nodeEls = new Map();
 const symbolEls = new Map();
+const zoneEls = new Map();
 let busEl = null;
+
+/** One dashed box + heading per zone group, positioned by `updateZones`. */
+function buildZones() {
+  const frag = document.createDocumentFragment();
+  for (const zone of zoneDefs) {
+    zone.groups.forEach((group, i) => {
+      const el = document.createElement('div');
+      el.className = 'zone';
+      el.style.setProperty('--zone-color', zone.color);
+      el.style.setProperty('--zone-text', zone.text);
+      el.innerHTML = `<span class="zone__label">${escapeHtml(zone.title)}</span>`;
+      frag.appendChild(el);
+      zoneEls.set(`${zone.id}:${i}`, el);
+    });
+  }
+  /* Behind the wires and cards, which are appended after. */
+  world.insertBefore(frag, world.firstChild);
+}
 
 function buildDom() {
   const frag = document.createDocumentFragment();
@@ -388,6 +413,38 @@ function computeTargets(result) {
   return { targets, symTargets };
 }
 
+/* Padding around a zone's tight bounding box — one `H_GAP` of breathing room,
+   the same unit the tree layout itself uses between siblings. */
+const ZONE_PAD = 32;
+
+/**
+ * Position (or hide) each zone group's dashed box and heading. A box only
+ * shows once every one of its own meters currently has a box — i.e. none of
+ * them is folded away inside a collapsed ancestor — so a partly-hidden group
+ * disappears along with the meter that went missing, without touching the
+ * same zone's other groups.
+ */
+function updateZones(frameBoxes) {
+  for (const zone of zoneDefs) {
+    zone.groups.forEach((group, i) => {
+      const el = zoneEls.get(`${zone.id}:${i}`);
+      const boxes = group.map((node) => frameBoxes.get(node.uid));
+      if (boxes.some((b) => !b)) {
+        el.style.opacity = 0;
+        return;
+      }
+      const minX = Math.min(...boxes.map((b) => b.x)) - ZONE_PAD;
+      const minY = Math.min(...boxes.map((b) => b.y)) - ZONE_PAD;
+      const maxX = Math.max(...boxes.map((b) => b.x + b.w)) + ZONE_PAD;
+      const maxY = Math.max(...boxes.map((b) => b.y + b.h)) + ZONE_PAD;
+      el.style.opacity = 1;
+      el.style.transform = `translate3d(${minX}px, ${minY}px, 0)`;
+      el.style.width = `${maxX - minX}px`;
+      el.style.height = `${maxY - minY}px`;
+    });
+  }
+}
+
 function paint(boxes, buses, frameBoxes) {
   /* Cards */
   for (const [uid, p] of placement) {
@@ -428,6 +485,8 @@ function paint(boxes, buses, frameBoxes) {
     frag.appendChild(path);
   }
   wires.appendChild(frag);
+
+  updateZones(frameBoxes);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1025,6 +1084,7 @@ function start() {
   try {
     measureCards();
     measureBusLabels();
+    buildZones();
     buildDom();
     buildSearch();
     if (location.hash === '#collapsed') collapseBranches();

@@ -194,7 +194,7 @@ body {
 .card__rule {
   width: 100%;
   height: 1px;
-  background: var(--colors-charcoal-blue-700);
+  background: var(--colors-text);
 }
 
 .card__row {
@@ -257,13 +257,81 @@ body {
   transform: translateX(-50%);
   padding: 1px 6px;
   border-radius: 9px;
-  background: var(--colors-charcoal-blue-700);
+  background: var(--colors-text);
   color: #fff;
   font-size: 11px;
   line-height: 15px;
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ *
+   Legend — meter status key, floating at the canvas's top-right corner
+ * ------------------------------------------------------------------ */
+.legend {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--legend-color);
+}
+
+.legend__dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--legend-color);
+}
+
+/* ------------------------------------------------------------------ *
+   SLD selection zones — the dashed background sections that group the
+   66 kV substation, the HT room and the LT bus. Hidden (opacity 0) rather
+   than `display: none` while any of a zone's meters is off screen, so it
+   fades back in instead of popping.
+ * ------------------------------------------------------------------ */
+.zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 3px dashed var(--zone-color);
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  will-change: transform;
+}
+
+.zone__label {
+  position: absolute;
+  top: -15px;
+  right: 22px;
+  padding: 3px 14px;
+  border-radius: 4px;
+  background: var(--zone-color);
+  color: var(--zone-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------ *

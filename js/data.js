@@ -17,8 +17,8 @@
  */
 export const TONES = {
   /* HV trunk — 66 kV incomer down through the transformer and DG mains.
-     colors/other/white on colors/charcoal-blue/700, per `Component 409`. */
-  white: { bg: '#ffffff', border: '#2f4050' },
+     colors/other/white on colors/text, per `Component 409`. */
+  white: { bg: '#ffffff', border: '#323232' },
   yellow: { bg: '#fffae0', border: '#ffc300' },
   yellowSoft: { bg: '#fffce5', border: '#ffe100' },
   lime: { bg: '#edfce4', border: '#4bc323' },
@@ -32,6 +32,9 @@ export const TONES = {
   pink: { bg: '#ffebf1', border: '#fa276c' },
   rose: { bg: '#ffebf1', border: '#f53c78' },
   orange: { bg: '#fff1e0', border: '#ff8c19' },
+  /* Status tones — see the legend in the header. */
+  off: { bg: '#ffe4dc', border: '#e4553d' },
+  disconnected: { bg: '#eeeeee', border: '#8f9391' },
 };
 
 /* Every metered card in the design carries the same sample readings. */
@@ -195,10 +198,10 @@ const BUS_FEEDERS = [
     ]),
     // 12FA ------------------------------------------------------------
     n('C375', '12FA OG CHILLER MCC PANEL-1', 'yellow', [
-      n('C452', '33FA OG GN-7 PDB PANEL 5 (C)', 'teal', [
-        n('C455', '33FA OG GN-7 PDB PANEL 5 (C)', 'teal'),
-        n('C453', '33FA OG GN-7 PDB PANEL 5 (C)', 'teal'),
-        n('C454', '33FA OG GN-7 PDB PANEL 5 (C)', 'teal'),
+      n('C452', 'IN CHILLER MCC 1 INCOMER', 'teal', [
+        n('C455', 'OG CHILLER 2', 'teal'),
+        n('C453', 'OG CHILED WATER PUMP- 1', 'teal'),
+        n('C454', 'IN COOLING TOWER FAN 2 MAIN', 'teal'),
       ]),
     ]),
     // 13FA ------------------------------------------------------------
@@ -403,9 +406,9 @@ BUS.incomers = BUS.items.filter((item) => item.kind === 'incomer');
  * ------------------------------------------------------------------ */
 
 export const ROOT = n('C411', 'IN 66KV GELLOPS LINE INCOMER', 'white', [
-  n('C400', 'OG 66KV TRANSFORMER-1', 'white', [
+  n('C400', 'OG 66KV TRANSFORMER-1', 'off', [
     n('C401', 'IN 11KV INCOMER- 1', 'white', [
-      n('C402', 'OG ZLL ONCOLOGY F OG- 1', 'white', [
+      n('C402', 'OG ZLL ONCOLOGY F OG- 1', 'disconnected', [
         n('C406', 'IN HT MAIN', 'white', [BUS]),
       ]),
       n('C403', 'OG ALIDAC OG- 2', 'white'),
@@ -420,6 +423,43 @@ ROOT.children[0].children[0].edgeSymbol = {
   type: 'transformer',
   label: '66/11 KV 12MVA Transformer-1',
 };
+
+/* ------------------------------------------------------------------ *
+ * SLD selection zones — the highlighted sections from the design, each a
+ * fixed set of meters. `groups` is an array of boxes a zone draws (every
+ * zone here is one box); a box only draws once every one of its own
+ * meters is actually on screen; see `updateZones` in `app.js`.
+ *
+ * The HT panel box stops at `OG TR-1/2/3` — it does not reach down to the
+ * `IN TR-x MAIN` cards underneath them, which sit at the same height as
+ * the DG mains directly above the 415 V bus. Reaching that far would
+ * both sweep the DG mains into the box (they sit in the gaps between the
+ * three transformer chains, which are spread across the bus's full
+ * width) and run the box into the LTPCC zone below it.
+ * ------------------------------------------------------------------ */
+export const ZONES = [
+  {
+    id: 'substation',
+    title: '66 KV Substation',
+    color: '#4bc323',
+    text: '#323232',
+    groups: [['C411', 'C400', 'C401', 'C402', 'C403', 'C404', 'C405']],
+  },
+  {
+    id: 'htPanel',
+    title: 'HT PANEL (HT ROOM)',
+    color: '#e123af',
+    text: '#ffffff',
+    groups: [['C406', 'C407', 'C408', 'C409']],
+  },
+  {
+    id: 'ltpcc',
+    title: 'LTPCC PANEL (LT ROOM)',
+    color: '#ffc300',
+    text: '#323232',
+    groups: [[DG1.id, DG2.id, DG3.id, ...BUS_FEEDERS.map((f) => f.id)]],
+  },
+];
 
 /** Depth-first walk over the model, including bus incomer chains. */
 export function walk(node, visit, parent = null) {

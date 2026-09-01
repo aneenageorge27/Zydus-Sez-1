@@ -126,6 +126,15 @@ export default function Page() {
         <div id="world">
           <svg id="wires" aria-hidden="true"></svg>
         </div>
+
+        <ul className="legend" aria-label="Meter status legend">
+          <li className="legend__item" style={{ '--legend-color': '#d92d20' }}>
+            <span className="legend__dot" aria-hidden="true"></span>Off
+          </li>
+          <li className="legend__item" style={{ '--legend-color': '#a0a0a0' }}>
+            <span className="legend__dot" aria-hidden="true"></span>Disconnected
+          </li>
+        </ul>
       </div>
 
       <p className="hint">
