@@ -39,6 +39,7 @@ export const TONES = {
 
 /* Every metered card in the design carries the same sample readings. */
 const PF = '0.8';
+const KW = '142.50';
 const KWH = '178.67';
 
 let seq = 0;
@@ -51,6 +52,7 @@ function n(id, title, tone, children) {
     kind: 'card',
     metrics: [
       ['PF', PF],
+      ['kW', KW],
       ['kWh', KWH],
     ],
     children: children || [],
@@ -406,9 +408,14 @@ BUS.incomers = BUS.items.filter((item) => item.kind === 'incomer');
  * ------------------------------------------------------------------ */
 
 export const ROOT = n('C411', 'IN 66KV GELLOPS LINE INCOMER', 'white', [
-  n('C400', 'OG 66KV TRANSFORMER-1', 'off', [
+  /* The HV trunk is one tone all the way down to the bus bar. The design drew
+     `OG 66KV TRANSFORMER-1` red and `OG ZLL ONCOLOGY F OG- 1` grey, but those
+     are the `Off` and `Disconnected` status colours: baked in here they would
+     read as a permanent alarm on two healthy cards. The live layer paints
+     those tones when the meter actually reports off or disconnected. */
+  n('C400', 'OG 66KV TRANSFORMER-1', 'white', [
     n('C401', 'IN 11KV INCOMER- 1', 'white', [
-      n('C402', 'OG ZLL ONCOLOGY F OG- 1', 'disconnected', [
+      n('C402', 'OG ZLL ONCOLOGY F OG- 1', 'white', [
         n('C406', 'IN HT MAIN', 'white', [BUS]),
       ]),
       n('C403', 'OG ALIDAC OG- 2', 'white'),

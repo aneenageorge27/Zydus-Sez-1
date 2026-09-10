@@ -40,6 +40,19 @@ their captions.
 | Expand / collapse a section | Click the chevron under a card |
 | Expand / collapse everything | **Expand all** / **Collapse all** |
 
+### Canvas limits
+
+Panning stops at the diagram. The outermost cards can always be brought fully
+into view — with a wider gap at the bottom so the last row clears the hint pill
+— and no further, so there is no empty canvas to scroll through past the end.
+When the diagram is smaller than the window the same rule keeps all of it on
+screen, and resizing the window pulls the view back inside the new limits.
+
+Zoom runs to 1200 %, and out only as far as showing the whole diagram (never
+below 100 %, so a collapsed diagram can still be seen at its natural size):
+there is nothing outside the diagram to look at, so zooming out further would
+only add empty canvas.
+
 ### Search
 
 Matching is a case-insensitive substring test over the meter names, ranked so
@@ -52,7 +65,6 @@ Picking one opens every folded ancestor on the way to it — its own section is
 left as it was — then travels to the card, zooming in far enough to read it if
 the reader was further out than that, and rings it until they move on.
 
-Panning is unbounded — the canvas has no edges. Zoom runs from 1 % to 1200 %.
 Loading the page with `#collapsed` starts with every branch off the bus folded.
 
 ### Accordion
@@ -115,6 +127,9 @@ js/data.js            the tree: every card, colour pair and connection
 js/layout.js          contour-based tidy-tree layout (incl. the 415 V bus)
 js/app.js             canvas pan/zoom, accordion, rendering, tweening
 js/search.js          header search: match, rank and list the meters
+js/device-map.js      card → devID register, fixed channels, link-sensor lookup
+js/live.js            SSO, polling, consumption pacing and the card-colour rules
+iosense-sdk/          IOsense REST layer: api.js, auth.js, devices.js
 public/assets/        SVGs exported from Figma, copied to out/assets/ as they are
 ```
 
@@ -198,7 +213,11 @@ unchanged.
 
 ## Notes
 
-* PF `0.8` / kWh `178.67` are the sample readings carried by every metered card
-  in the design; swap them per node in `data.js` when wiring up live data.
+* PF `0.8` / kW `142.50` / kWh `178.67` in `data.js` are the design's sample
+  readings. They are what the diagram draws with, and what stays on screen when
+  there is no IOsense session; once authenticated, every card is overwritten
+  with live values — PF and kW instantaneous, kWh the consumption since 00:00
+  IST. A meter silent for five minutes greys its card whole, icon included, but
+  keeps its last readings. See [iosense.md](iosense.md) for the integration.
 * Connectors use the design's stroke — black, 1.5 px — and are drawn with
   `vector-effect: non-scaling-stroke` so they stay hairline at any zoom.

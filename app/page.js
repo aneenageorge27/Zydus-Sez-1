@@ -25,6 +25,8 @@ export default function Page() {
             Zydus SEZ-1 <span>· SLD</span>
           </h1>
           <span className="chip" id="nodeCount"></span>
+          {/* Filled in by js/live.js once the IOsense session resolves. */}
+          <span className="live" id="liveStatus" hidden></span>
         </div>
 
         <div className="topbar__search">
@@ -141,6 +143,33 @@ export default function Page() {
         Drag to pan · scroll to pan · <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + scroll or pinch to zoom · click
         a chevron to expand or collapse
       </p>
+
+      {/* The way into the audit sheet — see js/audit.js. Deliberately quiet:
+          grey and unlabelled, so it reads as furniture to everyone except the
+          people who already know it is here. The sheet behind it asks for a
+          password, so the discretion is presentation, not access control. */}
+      <button
+        id="auditOpen"
+        className="audit-trigger"
+        type="button"
+        aria-label="Audit sheet"
+        aria-expanded="false"
+        title="Audit sheet"
+      >
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <rect
+            x="3.25"
+            y="3.25"
+            width="13.5"
+            height="13.5"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.4"
+          />
+          <path d="M3.25 8h13.5M8 8v8.75" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M3.25 12.4h13.5" stroke="currentColor" strokeWidth="1.4" />
+        </svg>
+      </button>
 
       <div id="measure" aria-hidden="true"></div>
     </>

@@ -132,6 +132,26 @@ body {
   box-shadow: 0 2px 10px rgba(15, 32, 48, 0.13);
 }
 
+/* A card whose meter is in the register is an <a> to its page on the portal.
+   Only the affordances change here — the card's own colours come from its tone
+   and must survive being a link, hence the explicit `color: inherit`. */
+.card--linked {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Lifts a little further than a plain card, so the difference between a card
+   that opens something and one that does not is visible before the click. */
+.card--linked:hover {
+  box-shadow: 0 4px 14px rgba(15, 32, 48, 0.2);
+}
+
+.card--linked:focus-visible {
+  outline: 3px solid #1e69f5;
+  outline-offset: 3px;
+}
+
 /* The card a search landed on, ringed until the reader moves on. */
 .node.is-found .card {
   outline: 3px solid #1e69f5;
@@ -442,6 +462,42 @@ body {
   white-space: nowrap;
 }
 
+/* ---- live status -------------------------------------------------
+   Sits beside the meter count and says whether the numbers on the cards are
+   current. Same pill shape as `.chip`, coloured by state. */
+.live {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #6b7785;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.live--live {
+  background: #e5fbef;
+  color: #00733a;
+}
+
+.live--unauthenticated,
+.live--error {
+  background: #ffe4dc;
+  color: #b3311c;
+}
+
+/* Live, but one column is failing — amber rather than red, because the
+   diagram and its live readings are still trustworthy. */
+.live--degraded {
+  background: #fff1e0;
+  color: #8a4b00;
+}
+
+/* A card whose newest reading is older than five minutes is greyed whole —
+   background, border and meter glyph, all applied from the `disconnected` tone
+   in JS. The readings themselves stay at full contrast: they are the last known
+   values and must stay legible. Nothing to add here. */
+
 /* ---- search ------------------------------------------------------ */
 .topbar__search {
   grid-area: search;
@@ -712,6 +768,535 @@ body {
   position: static;
   transform: none;
   display: inline-block;
+}
+
+/* ------------------------------------------------------------------ *
+   Audit sheet — js/audit.js
+ * ------------------------------------------------------------------ */
+
+/* The trigger. Grey and unlabelled so it does not compete with the diagram,
+   but a full 36px target sitting clear of the hint pill: someone who knows it
+   is here should hit it without aiming. It darkens on hover, which is the only
+   thing that tells a passer-by it is a control at all. */
+.audit-trigger {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(15, 32, 48, 0.1);
+  color: #98a3af;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.audit-trigger svg {
+  width: 19px;
+  height: 19px;
+}
+
+.audit-trigger:hover {
+  border-color: #b9c3cd;
+  color: var(--colors-charcoal-blue-700);
+  box-shadow: var(--panel-shadow);
+}
+
+.audit-trigger:focus-visible {
+  outline: 2px solid var(--colors-charcoal-blue-700);
+  outline-offset: 2px;
+}
+
+/* Set on <body> while the overlay is up. Deliberately not named after the
+   trigger: a class shared with `.audit-trigger` would put that button's
+   `position: fixed` and `backdrop-filter` on <body> itself, which makes body a
+   containing block for fixed children and collapses the whole overlay into a
+   36px square in the corner. It has happened; do not merge these names. */
+.audit-is-open .audit-trigger {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The canvas pans on window-level pointer and wheel handlers, so the overlay
+   has to sit above everything and swallow both. */
+.audit {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+/* The overlay, the gate and the sheet are all shown and hidden through the
+   `hidden` attribute, and all three set `display` — which silently beats the
+   UA stylesheet's `[hidden] { display: none }`. Without this the sheet renders
+   under the password gate and Close does nothing. Stated once for the whole
+   component so a new `display` rule below cannot reintroduce it. */
+.audit[hidden],
+.audit [hidden] {
+  display: none;
+}
+
+.audit__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 32, 48, 0.42);
+}
+
+.audit__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(1360px, 100%);
+  max-height: 100%;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 18px 60px rgba(15, 32, 48, 0.28);
+  overflow: hidden;
+}
+
+/* ---- password gate ---- */
+.audit__gate {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 26px 22px;
+}
+
+/* The gate is a small dialog inside the same panel the sheet fills, so it must
+   not stretch to sheet width. Driven by a class rather than inferred from the
+   gate's `hidden` state: whichever of the two is showing is a thing the JS
+   already knows, and one source of truth cannot disagree with itself. */
+.audit__panel--gate {
+  width: min(360px, 100%);
+}
+
+.audit__gate-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--colors-charcoal-blue-700);
+}
+
+.audit__gate-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: #6b7785;
+}
+
+.audit__gate-input {
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: var(--colors-text);
+}
+
+.audit__gate-input:focus {
+  outline: none;
+  border-color: var(--colors-charcoal-blue-700);
+}
+
+.audit__gate-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: #b3311c;
+}
+
+.audit__gate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* ---- sheet ---- */
+.audit__sheet {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.audit__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.audit__head-lead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.audit__title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 600;
+  color: var(--colors-charcoal-blue-700);
+}
+
+.audit__meta,
+.audit__taken,
+.audit__shown {
+  font-size: 12px;
+  line-height: 17px;
+  color: #6b7785;
+}
+
+.audit__head-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit__btn {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: var(--colors-charcoal-blue-700);
+  cursor: pointer;
+}
+
+.audit__btn:hover {
+  background: #f4f7fa;
+}
+
+.audit__btn--primary {
+  border-color: var(--colors-charcoal-blue-700);
+  background: var(--colors-charcoal-blue-700);
+  color: #fff;
+}
+
+.audit__btn--primary:hover {
+  background: #24313e;
+}
+
+/* Labelled, not a bare ×: the sheet fills the window, so the way out of it
+   should not be something you have to recognise. */
+.audit__btn--close {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 9px;
+}
+
+.audit__btn--close svg {
+  width: 12px;
+  height: 12px;
+}
+
+.audit__btn--close:hover {
+  border-color: #e2a99c;
+  background: #fff5f2;
+  color: #b3311c;
+}
+
+.audit__controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--panel-border);
+  background: #fbfcfd;
+}
+
+.audit__search {
+  flex: 1 1 240px;
+  min-width: 180px;
+  max-width: 340px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: var(--colors-text);
+}
+
+.audit__search:focus {
+  outline: none;
+  border-color: var(--colors-charcoal-blue-700);
+}
+
+.audit__chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.audit__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  color: #6b7785;
+  cursor: pointer;
+}
+
+.audit__chip:hover:not(:disabled) {
+  border-color: #b9c3cd;
+  color: var(--colors-charcoal-blue-700);
+}
+
+.audit__chip.is-on {
+  border-color: var(--colors-charcoal-blue-700);
+  background: var(--colors-charcoal-blue-700);
+  color: #fff;
+}
+
+/* A filter that would empty the table stays visible but dead — "0 offline" is
+   itself the answer someone opened the sheet for. */
+.audit__chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.audit__chip-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.audit__shown {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* The table is wider than any window, by design — nineteen columns of
+   provenance. It scrolls inside the panel rather than the page. */
+.audit__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* `max-content`, not `100%`: at nineteen columns the table should be as wide
+   as its content needs and scroll, rather than stretching every column to fill
+   the panel — a devID column padded out to 200px reads as a design mistake.
+   `min-width: 100%` keeps the header banding edge to edge when it does fit. */
+.audit__table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.audit__table th {
+  position: sticky;
+  z-index: 2;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--panel-border);
+  background: #f4f7fa;
+  font-weight: 600;
+  font-size: 11px;
+  color: #57626e;
+  text-align: left;
+}
+
+/* Two header rows, both pinned: the group row on top and the column row
+   directly under it, so a column can still be named after 150 rows of scroll. */
+/* Not uppercased, tempting though it is for a group heading: it would render
+   "kWh since 00:00 IST" as "KWH", and the case of a unit symbol is not
+   decoration. Weight and letter-spacing carry the hierarchy instead. */
+.audit__group th {
+  top: 0;
+  border-bottom: 1px solid #e6ebf0;
+  background: #eef2f6;
+  color: var(--colors-charcoal-blue-700);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.audit__table thead tr:last-child th {
+  top: 30px;
+}
+
+/* One hairline per column group, on both the header and the body, so the eye
+   can tell the kWh block from the channel ids without reading. */
+.audit__group--sep {
+  border-left: 1px solid #dde3e9;
+}
+
+.audit__cell {
+  padding: 5px 10px;
+  border-bottom: 1px solid #eef1f4;
+  color: var(--colors-text);
+}
+
+.audit__cell--index {
+  width: 1%;
+  color: #9aa5b1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.audit__cell--title {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.audit__link {
+  color: #1e69f5;
+  text-decoration: none;
+}
+
+.audit__link:hover {
+  text-decoration: underline;
+}
+
+.audit__cell--id,
+.audit__cell--chan {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: #57626e;
+}
+
+.audit__cell--chan {
+  text-align: center;
+}
+
+.audit__cell--num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.audit__cell--kwh {
+  font-weight: 600;
+  color: var(--colors-charcoal-blue-700);
+}
+
+.audit__cell--time,
+.audit__cell--faint {
+  color: #8a95a1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A gap is information here, so it is drawn rather than left blank — but
+   quietly, or 150 dashes would out-shout the readings. */
+.audit__cell.is-empty {
+  color: #c3cbd3;
+}
+
+.audit__row:hover .audit__cell {
+  background: #f7f9fb;
+}
+
+/* Row tinting matches the canvas: grey for a meter that is not talking, red
+   for one reporting a fault. */
+.audit__row--offline .audit__cell--title {
+  color: #8a95a1;
+}
+
+.audit__row--fault .audit__cell {
+  background: #fff7f5;
+}
+
+.audit__row--unmapped .audit__cell {
+  background: #fffaf2;
+}
+
+.audit__tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef2f6;
+  font-size: 11px;
+  line-height: 16px;
+  color: #6b7785;
+}
+
+.audit__tag--ok {
+  background: #e5fbef;
+  color: #00733a;
+}
+
+.audit__tag--offline {
+  background: #eef1f4;
+  color: #6b7785;
+}
+
+.audit__tag--fault {
+  background: #ffe4dc;
+  color: #b3311c;
+}
+
+.audit__tag--unmapped {
+  background: #fff1e0;
+  color: #8a4b00;
+}
+
+/* A register meter that was never drawn on the diagram. */
+.audit__row--offdiagram .audit__cell--title::after {
+  content: ' · not on diagram';
+  color: #b0b9c2;
+  font-weight: 400;
+}
+
+.audit__none {
+  padding: 22px 12px;
+  color: #8a95a1;
+  text-align: center;
+}
+
+.audit__foot {
+  margin: 0;
+  padding: 9px 16px;
+  border-top: 1px solid var(--panel-border);
+  background: #fbfcfd;
+  font-size: 11px;
+  line-height: 16px;
+  color: #8a95a1;
+  white-space: normal;
+}
+
+.audit__foot kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--panel-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 10px;
+  color: var(--colors-charcoal-blue-700);
 }
 
 /* ------------------------------------------------------------------ *

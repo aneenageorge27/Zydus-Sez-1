@@ -7,7 +7,9 @@
  *  · Positions are tweened here so cards and wires stay in lock-step.
  */
 
+import { initAudit, setAuditSource } from './audit.js';
 import { ROOT, TONES, ZONES, walk } from './data.js';
+import { deviceIdFor, deviceUrl } from './device-map.js';
 import { layout, NODE_W, SYMBOL_H, SYMBOL_W, isCollapsible } from './layout.js';
 import { initSearch } from './search.js';
 
@@ -70,19 +72,33 @@ const collapsed = new Set();
 /* ------------------------------------------------------------------ *
  * Card markup + measurement
  * ------------------------------------------------------------------ */
+/** Where this card's meter lives on the portal, or null if it has none. */
+function cardHref(node) {
+  return node.metrics ? deviceUrl(deviceIdFor(node)) : null;
+}
+
 function cardMarkup(node) {
   const rows = node.metrics
     ? `<div class="card__metrics"><div class="card__rule"></div>${node.metrics
         .map(
           ([k, v]) =>
-            `<div class="card__row"><span>${k}</span><span>${v}</span></div>`
+            `<div class="card__row" data-metric="${escapeHtml(k)}"><span>${k}</span><span class="card__value">${v}</span></div>`
         )
         .join('')}</div>`
     : '';
-  return `<div class="card"><div class="card__head">
+  const inner = `<div class="card__head">
       <img class="card__icon" src="assets/meter-${node.tone}.svg" alt="" width="40" height="40" />
       <p class="card__title">${escapeHtml(node.title)}</p>
-    </div>${rows}</div>`;
+    </div>${rows}`;
+
+  /* A real anchor, not a click handler: middle-click, ⌘/Ctrl-click, "copy link
+     address" and the status-bar URL preview all come free, and the card is
+     reachable by keyboard. A card whose meter is not in the register stays a
+     plain div, so nothing looks clickable that leads nowhere. */
+  const href = cardHref(node);
+  return href
+    ? `<a class="card card--linked" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" title="Open ${escapeHtml(node.title)} on IOsense">${inner}</a>`
+    : `<div class="card">${inner}</div>`;
 }
 
 function escapeHtml(s) {
@@ -110,7 +126,7 @@ function measureCards() {
 }
 
 const cardSize = (node) =>
-  cardSizes.get(node.uid) || { w: NODE_W, h: 129 };
+  cardSizes.get(node.uid) || { w: NODE_W, h: 159 };
 
 /* Labels sitting on the bus bar are measured too, so a coupler claims as
    much room along the bar as its caption actually needs. */
@@ -173,6 +189,9 @@ function buildDom() {
     const el = document.createElement('div');
     el.className = 'node';
     el.dataset.uid = node.uid;
+    /* Kept so a card greyed out by stale data can be put back to the colour
+       the design gave it, without another lookup into the model. */
+    el.dataset.tone = node.tone;
     el.style.setProperty('--node-bg', TONES[node.tone].bg);
     el.style.setProperty('--node-border', TONES[node.tone].border);
     el.innerHTML = cardMarkup(node);
@@ -830,7 +849,68 @@ document.getElementById('collapseAll').addEventListener('click', () => {
  * ------------------------------------------------------------------ */
 const view = { x: 0, y: 0, k: 1 };
 
+/* Room left around the diagram at the pan limits. The bottom clears the hint
+   pill, which is fixed over the canvas, so the last row of cards stays readable
+   when the reader has scrolled all the way down. */
+const PAN_MARGIN = { top: 24, right: 24, bottom: 72, left: 24 };
+
+/** The padding `fit` leaves around the diagram. */
+const FIT_PAD = 80;
+
+/** The scale at which the whole diagram fits the viewport. */
+function fitScale() {
+  if (!current) return 1;
+  const b = current.bounds;
+  const w = b.maxX - b.minX;
+  const h = b.maxY - b.minY;
+  if (!(w > 0) || !(h > 0)) return 1;
+  return Math.min(
+    (viewport.clientWidth - FIT_PAD * 2) / w,
+    (viewport.clientHeight - FIT_PAD * 2) / h
+  );
+}
+
+/**
+ * The lowest zoom worth allowing.
+ *
+ * There is nothing outside the diagram to see, so zooming out past the point
+ * where all of it is on screen only adds empty canvas. Capped at 100% so a
+ * collapsed, small diagram can still be zoomed out to its natural size.
+ */
+function minScale() {
+  return Math.max(MIN_K, Math.min(1, fitScale()));
+}
+
+/**
+ * Hold the diagram against the viewport.
+ *
+ * Panning stops at the edge of the content: the outermost card can always be
+ * brought fully into view and never further, so there is no empty canvas to
+ * scroll through past the end. When the diagram is smaller than the viewport
+ * the same rule keeps all of it on screen.
+ */
+function clampView() {
+  if (!current) return;
+  const b = current.bounds;
+  const k = view.k;
+
+  /* A world edge sits at `view.x + worldX * k` on screen, so these are the two
+     translations that put each content edge on its margin. Which one is the
+     lower bound flips depending on whether the content is larger than the
+     viewport, so take them in whichever order they fall. */
+  const xa = PAN_MARGIN.left - b.minX * k;
+  const xb = viewport.clientWidth - PAN_MARGIN.right - b.maxX * k;
+  view.x = Math.min(Math.max(view.x, Math.min(xa, xb)), Math.max(xa, xb));
+
+  const ya = PAN_MARGIN.top - b.minY * k;
+  const yb = viewport.clientHeight - PAN_MARGIN.bottom - b.maxY * k;
+  view.y = Math.min(Math.max(view.y, Math.min(ya, yb)), Math.max(ya, yb));
+}
+
 function applyView() {
+  /* Every view change lands here — drag, wheel, zoom, tween frame, fit — so
+     this is the one place the limits need enforcing. */
+  clampView();
   world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`;
   document.getElementById('zoomLevel').textContent = `${Math.round(view.k * 100)}%`;
 }
@@ -848,7 +928,7 @@ function localPoint(clientX, clientY) {
 
 function zoomAt(px, py, factor) {
   stopViewTween();
-  const k = Math.min(MAX_K, Math.max(MIN_K, view.k * factor));
+  const k = Math.min(MAX_K, Math.max(minScale(), view.k * factor));
   const scale = k / view.k;
   view.x = px - (px - view.x) * scale;
   view.y = py - (py - view.y) * scale;
@@ -860,15 +940,10 @@ function fit(animate = false) {
   if (!current) return;
   stopViewTween();
   const b = current.bounds;
-  const pad = 80;
   const w = b.maxX - b.minX;
   const h = b.maxY - b.minY;
-  const k = Math.min(
-    (viewport.clientWidth - pad * 2) / w,
-    (viewport.clientHeight - pad * 2) / h
-  );
   const target = {
-    k: Math.min(MAX_K, Math.max(MIN_K, k)),
+    k: Math.min(MAX_K, Math.max(MIN_K, fitScale())),
     x: 0,
     y: 0,
   };
@@ -911,33 +986,72 @@ viewport.addEventListener(
   { passive: false }
 );
 
+/* How far the pointer may travel before a press counts as a pan rather than a
+   click. Panning used to begin — and capture the pointer — on pointerdown,
+   which retargets the click to the viewport and so swallowed the one a card's
+   link needs. Now nothing happens until the pointer has actually moved. */
+const DRAG_SLOP = 4;
+
 let drag = null;
+/* A pan that ends over a card must not also open that card. */
+let panned = false;
+
 viewport.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 && e.button !== 1) return;
   if (e.target.closest('.toggle')) return;
   stopViewTween();
-  drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, id: e.pointerId };
-  viewport.setPointerCapture(e.pointerId);
-  viewport.classList.add('is-panning');
+  /* Cleared here rather than after the click, because a drag that ends outside
+     the window never produces one. */
+  panned = false;
+  drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, id: e.pointerId, moved: false };
 });
 
 viewport.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
-  view.x = drag.vx + (e.clientX - drag.x);
-  view.y = drag.vy + (e.clientY - drag.y);
+  const dx = e.clientX - drag.x;
+  const dy = e.clientY - drag.y;
+
+  if (!drag.moved) {
+    if (Math.abs(dx) < DRAG_SLOP && Math.abs(dy) < DRAG_SLOP) return;
+    /* It is a pan after all. Capture the pointer now, so leaving the card — or
+       the window — does not strand the drag half-finished. */
+    drag.moved = true;
+    viewport.setPointerCapture(drag.id);
+    viewport.classList.add('is-panning');
+  }
+
+  view.x = drag.vx + dx;
+  view.y = drag.vy + dy;
   applyView();
 });
 
 const endDrag = (e) => {
   if (!drag || e.pointerId !== drag.id) return;
+  panned = drag.moved;
   drag = null;
   viewport.classList.remove('is-panning');
 };
 viewport.addEventListener('pointerup', endDrag);
 viewport.addEventListener('pointercancel', endDrag);
 
+/* Capture phase, so the card's own anchor never sees the click that merely
+   ended a pan. */
+viewport.addEventListener(
+  'click',
+  (e) => {
+    if (!panned) return;
+    panned = false;
+    e.preventDefault();
+    e.stopPropagation();
+  },
+  true
+);
+
 viewport.addEventListener('dblclick', (e) => {
   if (e.target.closest('.toggle')) return;
+  /* On a linked card a click already means "open this meter"; zooming on the
+     second one would fight it. */
+  if (e.target.closest('.card--linked')) return;
   const p = localPoint(e.clientX, e.clientY);
   zoomAt(p.x, p.y, 1.5);
 });
@@ -952,6 +1066,9 @@ document.getElementById('fit').addEventListener('click', () => fit(true));
 
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, textarea')) return;
+  /* The audit sheet covers the canvas, so panning it from under the sheet
+     would only be confusing — and Arrow/0 belong to the sheet's own table. */
+  if (document.body.classList.contains('audit-is-open')) return;
   const cx = viewport.clientWidth / 2;
   const cy = viewport.clientHeight / 2;
   const pan = e.shiftKey ? 300 : 100;
@@ -1069,12 +1186,136 @@ function remeasure() {
   render(false, node && { node, mode: 'pin' });
 }
 
+/* A narrower or shorter window changes both the pan limits and the zoom floor,
+   so the view has to be pulled back inside them — otherwise the diagram can be
+   left stranded off-screen with empty canvas where it used to be. */
+let resizeFrame = 0;
+window.addEventListener('resize', () => {
+  if (resizeFrame) cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0;
+    if (!current) return;
+    const floor = minScale();
+    if (view.k < floor) view.k = floor;
+    applyView();
+  });
+});
+
 function showBootError(err) {
   const box = document.createElement('div');
   box.className = 'boot-error';
   box.textContent = `The diagram failed to load: ${err && err.message ? err.message : err}`;
   document.body.appendChild(box);
   console.error(err);
+}
+
+/* ------------------------------------------------------------------ *
+ * Live readings
+ *
+ * The diagram is drawn from the model and only then wired to IOsense, so a
+ * missing token, a dead session or an unreachable connector costs the reader
+ * the numbers — never the diagram.
+ * ------------------------------------------------------------------ */
+const statusEl = () => document.getElementById('liveStatus');
+
+/* Card status → the design tone that paints it. Anything else keeps the tone
+   the design gave the card. Both tones, and their meter glyphs, already exist:
+   they are the `Off` and `Disconnected` keys in the header legend. */
+const STATUS_TONE = { offline: 'disconnected', fault: 'off' };
+
+/** Write one card's readings and the colour its status calls for. */
+function applyCardReading(uid, { values, status, unmapped }) {
+  const el = nodeEls.get(uid);
+  if (!el) return;
+
+  for (const [metric, value] of Object.entries(values)) {
+    const cell = el.querySelector(`[data-metric="${metric}"] .card__value`);
+    /* A card with no reading keeps a dash rather than the sample number it was
+       drawn with — a placeholder that looks like a measurement is worse than
+       an obvious blank on an operations display. */
+    if (cell) cell.textContent = value === null ? '—' : value;
+  }
+
+  /* An offline meter greys whole and a faulted one turns red — background,
+     border and the meter glyph — while the last known numbers stay legible.
+     A healthy card goes back to the tone the design gave it. */
+  const toneName = STATUS_TONE[status] || el.dataset.tone;
+  const tone = TONES[toneName];
+  el.style.setProperty('--node-bg', tone.bg);
+  el.style.setProperty('--node-border', tone.border);
+
+  /* The icon is an <img>, so CSS cannot recolour it — swap to the tone's own
+     export. `meter-disconnected.svg` and `meter-off.svg` are already the exact
+     colours of those tones. setAttribute keeps the src relative. */
+  const icon = el.querySelector('.card__icon');
+  if (icon) icon.setAttribute('src', `assets/meter-${toneName}.svg`);
+
+  el.classList.toggle('node--stale', status === 'offline');
+  el.classList.toggle('node--fault', status === 'fault');
+  el.classList.toggle('node--unmapped', Boolean(unmapped));
+}
+
+function showLiveStatus(status) {
+  const el = statusEl();
+  if (!el) return;
+
+  el.hidden = false;
+  el.className = `live live--${status.kind}`;
+
+  if (status.kind === 'live') {
+    const time = new Date(status.at).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    /* A partial failure has to be visible without opening the console: the kWh
+       column can fail on its own, and 151 dashes do not say why. */
+    if (status.problem) {
+      el.className = 'live live--degraded';
+      el.textContent = `Live · ${status.mapped}/${status.total} · ${status.problem}`;
+      el.title =
+        (status.detail ? status.detail + '\n\n' : '') +
+        'PF and kW are live. See the console for the failing request.';
+      return;
+    }
+    el.textContent = `Live · ${status.mapped}/${status.total} meters · ${time}`;
+    el.title = 'Readings refresh every 30 seconds';
+    return;
+  }
+  if (status.kind === 'connecting') {
+    el.textContent = 'Connecting…';
+    return;
+  }
+  if (status.kind === 'unauthenticated') {
+    el.textContent = status.message;
+    el.title = 'Generate an SSO token from your IOsense profile and open this page with ?token=…';
+    return;
+  }
+  el.textContent = status.message || 'Live data unavailable';
+}
+
+function wireLiveData() {
+  const cards = nodes
+    .filter((node) => node.metrics)
+    .map((node) => ({ id: node.id, uid: node.uid, title: node.title }));
+
+  import('./live.js')
+    .then((live) => {
+      /* Pointed at the live layer before the session is opened, and never
+         awaited on: the audit sheet reads the register as well as the
+         readings, so it has to be useful precisely when authentication has
+         failed and the canvas is showing nothing. */
+      setAuditSource(live.auditSnapshot);
+
+      return live.initLiveData({
+        cards,
+        applyCard: applyCardReading,
+        onStatus: showLiveStatus,
+      });
+    })
+    .catch((err) => {
+      console.error('[sld] live data unavailable', err);
+      showLiveStatus({ kind: 'error', message: 'Live data unavailable' });
+    });
 }
 
 function start() {
@@ -1094,6 +1335,10 @@ function start() {
     showBootError(err);
     return;
   }
+
+  /* Only once the diagram is on screen. */
+  initAudit();
+  wireLiveData();
 
   /* Noto Sans measures differently from the fallback stack, so once it has
      settled re-measure and re-fit — but leave the view alone if the reader
