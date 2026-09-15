@@ -138,45 +138,50 @@ carry no metrics and are correctly absent.
 ## Card colour
 
 ```
-IF  (RSSI == -1 AND Status == 0)  OR  no reading in 5 min
+IF  no sensor value for 15 min  OR  (RSSI == -1 AND Status == 0)
         GRAY    tone `disconnected`, glyph meter-disconnected.svg
-ELSE IF  D6 < 1
-        RED     tone `off`,          glyph meter-off.svg
 ELSE
         the tone the design gave the card
 ```
 
-**Gray outranks red.** A meter that is not talking cannot be trusted to report a
-meaningful `D6` either, so its last stale `D6` must not paint the card red as
-though it were a live fault.
+Gray is the only status a card can take, and it means one thing: the meter is
+not delivering data. Two independent routes lead there:
 
-The 5-minute reading-age test is a second, independent route to gray: a meter
-whose link drops entirely stops sending RSSI too, so the timestamp is what
-catches a dead device.
+- **Nothing arriving for 15 minutes** on any channel the app reads (PF, kW, the
+  D30 energy counter, RSSI, Status). A meter whose link drops entirely stops
+  sending RSSI too, so the timestamp is what catches a dead device.
+- **The device reporting itself offline** — RSSI −1 with Status 0 — which
+  catches a meter that is still sending values but has lost its link.
 
-Both tones and both glyphs already existed — they are the `Off` and
-`Disconnected` keys in the header legend.
+A card that has reported within 15 minutes, and is not reporting itself
+offline, keeps its normal colour.
+
+There is no red state. An earlier rule painted a card red when `D6 < 1`; it was
+removed, `D6` is no longer fetched, and the header legend lists only
+*Disconnected*.
 
 ## Extra channels
 
 | Channel | Id | Purpose |
 |---|---|---|
-| Fault | `D6` | `< 1` paints the card red. Fetched, never displayed |
 | RSSI | resolved by name | with Status, the device's own offline report |
 | Status | resolved by name | " |
 
-`D1`/`D3`/`D30`/`D6` are pinned ids. **RSSI and Status are resolved per device by
+`D1`/`D3`/`D30` are pinned ids. **RSSI and Status are resolved per device by
 `sensorName`**, because they were never given as fixed ids and a wrong channel
 would silently paint cards the wrong colour. That is why `findUserDevices` runs
 once at boot. If a device exposes neither, that card falls back to the
-reading-age rule alone and a console warning names the count.
+15-minute rule alone and a console warning names the count.
 
 ## Display rules
 
 - Refresh every 30s; skipped while the tab is hidden, immediate on return.
-- Values are shown to **3 decimals** (`23.347`).
-- A gray or red card keeps its last known values — the colour qualifies the
-  reading, it does not replace it.
+- **PF** is shown to 3 decimals (`0.859`); **kW** and **kWh** as whole numbers
+  (`125.78` → `126`). A value that rounds to zero shows `0`, never `-0`.
+- The audit sheet keeps 3 decimals for every reading on purpose — it exists to
+  check where a card's figure came from, and rounding would hide that.
+- A gray card keeps its last known values — the colour qualifies the reading,
+  it does not replace it.
 - A metric with no reading shows `—`.
 
 ## Console helpers

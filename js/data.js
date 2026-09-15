@@ -32,7 +32,8 @@ export const TONES = {
   pink: { bg: '#ffebf1', border: '#fa276c' },
   rose: { bg: '#ffebf1', border: '#f53c78' },
   orange: { bg: '#fff1e0', border: '#ff8c19' },
-  /* Status tones — see the legend in the header. */
+  /* Status tones from the design. Only `disconnected` is painted live — the
+     gray a card takes when its meter stops delivering data; see js/live.js. */
   off: { bg: '#ffe4dc', border: '#e4553d' },
   disconnected: { bg: '#eeeeee', border: '#8f9391' },
 };
@@ -411,8 +412,8 @@ export const ROOT = n('C411', 'IN 66KV GELLOPS LINE INCOMER', 'white', [
   /* The HV trunk is one tone all the way down to the bus bar. The design drew
      `OG 66KV TRANSFORMER-1` red and `OG ZLL ONCOLOGY F OG- 1` grey, but those
      are the `Off` and `Disconnected` status colours: baked in here they would
-     read as a permanent alarm on two healthy cards. The live layer paints
-     those tones when the meter actually reports off or disconnected. */
+     read as a permanent alarm on two healthy cards. The live layer paints the
+     gray tone when a meter actually stops delivering data. */
   n('C400', 'OG 66KV TRANSFORMER-1', 'white', [
     n('C401', 'IN 11KV INCOMER- 1', 'white', [
       n('C402', 'OG ZLL ONCOLOGY F OG- 1', 'white', [

@@ -23,7 +23,9 @@ const PASSWORD = 'ZYDUS';
 /** Unlock lasts the tab session — reopening the sheet should not re-ask. */
 const UNLOCK_KEY = 'sld.audit.unlocked';
 
-/** Readings and register values, to match the cards. */
+/* Readings are shown to three places even though the cards round kW and kWh
+   to whole numbers: this sheet exists to check where a figure came from, and
+   rounding here would hide the very differences it is for. */
 const DECIMALS = 3;
 
 /* Which rows the filter chips keep. Predicates rather than a switch so a new
@@ -33,7 +35,6 @@ const FILTERS = {
   all: () => true,
   unmapped: (row) => !row.devID,
   offline: (row) => row.status === 'offline',
-  fault: (row) => row.status === 'fault',
   nokwh: (row) => Boolean(row.devID) && !row.kwh,
   offdiagram: (row) => !row.onDiagram,
 };
@@ -42,7 +43,6 @@ const FILTER_LABELS = {
   all: 'All',
   unmapped: 'Unmapped',
   offline: 'Offline',
-  fault: 'Fault',
   nokwh: 'No kWh',
   offdiagram: 'Not on diagram',
 };
@@ -141,7 +141,7 @@ function rowMarkup(row, index) {
   const s = row.sensors || {};
   const kwh = row.kwh;
 
-  /* The status column carries the same three states the cards use, plus
+  /* The status column carries the same two states the cards use, plus
      `unmapped` for a card with no meter behind it at all. */
   const state = row.devID ? row.status : 'unmapped';
 
@@ -153,7 +153,6 @@ function rowMarkup(row, index) {
     cell(row.devID ? s.PF : null, 'audit__cell--chan') +
     cell(row.devID ? s.kW : null, 'audit__cell--chan') +
     cell(row.devID ? s.kWh : null, 'audit__cell--chan') +
-    cell(row.devID ? s.fault : null, 'audit__cell--chan') +
     cell(s.rssi || null, 'audit__cell--chan') +
     cell(s.status || null, 'audit__cell--chan') +
     cell(row.pf ? num(row.pf.value) : null, 'audit__cell--num') +
@@ -177,7 +176,7 @@ function renderTable() {
 
   body.innerHTML = rows.length
     ? rows.map((row, i) => rowMarkup(row, i + 1)).join('')
-    : `<tr><td class="audit__none" colspan="19">No meters match this filter.</td></tr>`;
+    : `<tr><td class="audit__none" colspan="18">No meters match this filter.</td></tr>`;
 
   ui.root.querySelector('#auditShown').textContent = rows.length === ui.snapshot.rows.length
     ? `${rows.length} meters`
@@ -231,7 +230,7 @@ function refresh() {
 
 const CSV_HEADERS = [
   'Meter', 'Device ID', 'On diagram',
-  'PF channel', 'kW channel', 'kWh channel', 'Fault channel', 'RSSI channel', 'Status channel',
+  'PF channel', 'kW channel', 'kWh channel', 'RSSI channel', 'Status channel',
   'PF', 'kW',
   'kWh first DP', 'kWh first DP at', 'kWh last DP', 'kWh last DP at', 'kWh', 'kWh points',
   'State', 'Last reading at',
@@ -257,7 +256,6 @@ function csvRows() {
       row.devID ? s.PF : null,
       row.devID ? s.kW : null,
       row.devID ? s.kWh : null,
-      row.devID ? s.fault : null,
       s.rssi,
       s.status,
       row.pf ? row.pf.value : null,
@@ -349,7 +347,7 @@ const SHEET_MARKUP = `
         <thead>
           <tr class="audit__group">
             <th colspan="3">Meter</th>
-            <th colspan="6" class="audit__group--sep">Sensor IDs</th>
+            <th colspan="5" class="audit__group--sep">Sensor IDs</th>
             <th colspan="2" class="audit__group--sep">Live reading</th>
             <th colspan="6" class="audit__group--sep">kWh since 00:00 IST</th>
             <th colspan="2" class="audit__group--sep">Health</th>
@@ -361,7 +359,6 @@ const SHEET_MARKUP = `
             <th class="audit__group--sep">PF</th>
             <th>kW</th>
             <th>kWh</th>
-            <th>Fault</th>
             <th>RSSI</th>
             <th>Status</th>
             <th class="audit__group--sep">PF</th>

@@ -23,12 +23,6 @@
 export const SENSORS = { PF: 'D3', kW: 'D1', kWh: 'D30' };
 
 /**
- * Channel whose value below 1 marks the meter faulted, painting the card red.
- * Fetched but never displayed.
- */
-export const FAULT_SENSOR = 'D6';
-
-/**
  * The link-health channels, resolved per device by NAME rather than pinned to
  * an id: unlike D1/D3/D30 these were not given as fixed ids, and a wrong
  * channel here would silently paint cards the wrong colour.

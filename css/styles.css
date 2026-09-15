@@ -1220,14 +1220,9 @@ body {
   background: #f7f9fb;
 }
 
-/* Row tinting matches the canvas: grey for a meter that is not talking, red
-   for one reporting a fault. */
+/* Row tinting matches the canvas: grey for a meter that is not talking. */
 .audit__row--offline .audit__cell--title {
   color: #8a95a1;
-}
-
-.audit__row--fault .audit__cell {
-  background: #fff7f5;
 }
 
 .audit__row--unmapped .audit__cell {
@@ -1252,11 +1247,6 @@ body {
 .audit__tag--offline {
   background: #eef1f4;
   color: #6b7785;
-}
-
-.audit__tag--fault {
-  background: #ffe4dc;
-  color: #b3311c;
 }
 
 .audit__tag--unmapped {

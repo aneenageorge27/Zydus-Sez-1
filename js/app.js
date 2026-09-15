@@ -1219,9 +1219,9 @@ function showBootError(err) {
 const statusEl = () => document.getElementById('liveStatus');
 
 /* Card status → the design tone that paints it. Anything else keeps the tone
-   the design gave the card. Both tones, and their meter glyphs, already exist:
-   they are the `Off` and `Disconnected` keys in the header legend. */
-const STATUS_TONE = { offline: 'disconnected', fault: 'off' };
+   the design gave the card. The gray tone and its meter glyph already exist:
+   they are the `Disconnected` key in the header legend. */
+const STATUS_TONE = { offline: 'disconnected' };
 
 /** Write one card's readings and the colour its status calls for. */
 function applyCardReading(uid, { values, status, unmapped }) {
@@ -1236,22 +1236,21 @@ function applyCardReading(uid, { values, status, unmapped }) {
     if (cell) cell.textContent = value === null ? '—' : value;
   }
 
-  /* An offline meter greys whole and a faulted one turns red — background,
-     border and the meter glyph — while the last known numbers stay legible.
-     A healthy card goes back to the tone the design gave it. */
+  /* An offline meter greys whole — background, border and the meter glyph —
+     while the last known numbers stay legible. A healthy card goes back to the
+     tone the design gave it. */
   const toneName = STATUS_TONE[status] || el.dataset.tone;
   const tone = TONES[toneName];
   el.style.setProperty('--node-bg', tone.bg);
   el.style.setProperty('--node-border', tone.border);
 
   /* The icon is an <img>, so CSS cannot recolour it — swap to the tone's own
-     export. `meter-disconnected.svg` and `meter-off.svg` are already the exact
-     colours of those tones. setAttribute keeps the src relative. */
+     export. `meter-disconnected.svg` is already the exact gray of that tone.
+     setAttribute keeps the src relative. */
   const icon = el.querySelector('.card__icon');
   if (icon) icon.setAttribute('src', `assets/meter-${toneName}.svg`);
 
   el.classList.toggle('node--stale', status === 'offline');
-  el.classList.toggle('node--fault', status === 'fault');
   el.classList.toggle('node--unmapped', Boolean(unmapped));
 }
 

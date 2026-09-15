@@ -129,10 +129,9 @@ export default function Page() {
           <svg id="wires" aria-hidden="true"></svg>
         </div>
 
+        {/* Gray is the only status a card can take: no sensor value for 15
+            minutes, or the device reporting itself offline. */}
         <ul className="legend" aria-label="Meter status legend">
-          <li className="legend__item" style={{ '--legend-color': '#d92d20' }}>
-            <span className="legend__dot" aria-hidden="true"></span>Off
-          </li>
           <li className="legend__item" style={{ '--legend-color': '#a0a0a0' }}>
             <span className="legend__dot" aria-hidden="true"></span>Disconnected
           </li>

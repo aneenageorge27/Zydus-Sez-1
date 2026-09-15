@@ -24,7 +24,6 @@ import {
 } from '../iosense-sdk/devices.js';
 import {
   DEVICE_IDS,
-  FAULT_SENSOR,
   SENSORS,
   resolveDevices,
   resolveLinkSensors,
@@ -33,8 +32,8 @@ import {
 /** How often the readings are refreshed. */
 const POLL_MS = 30_000;
 
-/** No reading newer than this and the meter counts as offline. */
-const STALE_MS = 5 * 60_000;
+/** No sensor value newer than this and the card goes gray. */
+const STALE_MS = 15 * 60_000;
 
 /** The site runs on IST; the consumption cycle turns over at local midnight. */
 const TIMEZONE = 'Asia/Calcutta';
@@ -43,8 +42,11 @@ const CYCLE_TIME = '00:00';
 /* The metrics a card carries, in the order they are drawn. */
 const METRICS = ['PF', 'kW', 'kWh'];
 
-/** Decimal places on every reading. */
-const DECIMALS = 3;
+/**
+ * Decimal places per metric. Power factor lives in 0..1 and needs its decimals;
+ * kW and kWh read as whole numbers on the cards (125.78 → 126).
+ */
+const PRECISION = { PF: 3, kW: 0, kWh: 0 };
 
 /* ---- consumption pacing -------------------------------------------------
    The connector rate-limits by *device count over a rolling window*, not by
@@ -97,11 +99,13 @@ const readingOf = (devID, sensor) =>
 /**
  * What colour a card should be.
  *
- * Offline outranks faulted: a meter that is not talking cannot be trusted to
- * report a meaningful D6 either, so its last stale D6 must not paint the card
- * red as though it were a live fault.
+ * Gray when the meter is not delivering data — either nothing has arrived on
+ * any channel for STALE_MS, or the device itself reports RSSI -1 with Status 0.
+ * Anything else keeps the card in its normal colour. (A card with no reading
+ * on any displayed metric never gets this far — applyToCards greys it
+ * outright.)
  *
- * @returns {'offline'|'fault'|'ok'}
+ * @returns {'offline'|'ok'}
  */
 function cardStatus(devID, newest, now) {
   const link = state.linkSensors.get(devID) || {};
@@ -120,22 +124,19 @@ function cardStatus(devID, newest, now) {
      RSSI too, so this is what catches a dead device. */
   const silent = !newest || now - newest > STALE_MS;
 
-  if (saysOffline || silent) return 'offline';
-
-  const fault = readingOf(devID, FAULT_SENSOR);
-  /* Absent D6 is not a fault: NaN < 1 is false, but say it explicitly. */
-  if (fault !== undefined && Number(fault.value) < 1) return 'fault';
-
-  return 'ok';
+  return saysOffline || silent ? 'offline' : 'ok';
 }
 
-/** Fixed to DECIMALS places, but never turning a genuine 0 into a blank. */
-function formatValue(value) {
+/** Fixed to `decimals` places, but never turning a genuine 0 into a blank. */
+function formatValue(value, decimals) {
   if (value === null || value === undefined) return null;
   /* Values can arrive as strings, so coerce before formatting. */
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
-  return n.toFixed(DECIMALS);
+  const text = n.toFixed(decimals);
+  /* toFixed keeps the sign of a value that rounds to zero, so -0.2 kWh of
+     counter jitter would read "-0". Zero has no sign on a meter card. */
+  return Number(text) === 0 ? (0).toFixed(decimals) : text;
 }
 
 /** Every device on the diagram, once. */
@@ -162,10 +163,10 @@ function applyToCards() {
           /* Consumption since 00:00: the last D30 datapoint minus the first,
              taken from the downsampled series. */
           const computed = state.consumption.get(devID);
-          value = computed ? formatValue(computed.consumption) : null;
+          value = computed ? formatValue(computed.consumption, PRECISION.kWh) : null;
         } else {
           const reading = state.latest.get(`${devID}|${SENSORS[metric]}`);
-          value = reading ? formatValue(reading.value) : null;
+          value = reading ? formatValue(reading.value, PRECISION[metric]) : null;
         }
       }
       values[metric] = value;
@@ -177,12 +178,7 @@ function applyToCards() {
        reading and proof the energy channel is alive. */
     if (devID) {
       const link = state.linkSensors.get(devID) || {};
-      const channels = [
-        ...Object.values(SENSORS),
-        FAULT_SENSOR,
-        link.rssi,
-        link.status,
-      ];
+      const channels = [...Object.values(SENSORS), link.rssi, link.status];
       /* Any channel reporting proves the meter is talking, so freshness looks
          at all of them, not only the three that are displayed. */
       for (const sensor of channels) {
@@ -191,10 +187,15 @@ function applyToCards() {
       }
     }
 
-    /* An offline card greys whole — background, border and meter icon — and a
-       faulted one turns red, but either way the last known values stay on
-       show: the reading is the useful thing, the colour is what qualifies it. */
-    const status = devID ? cardStatus(devID, newest, now) : 'offline';
+    /* An offline card greys whole — background, border and meter icon — but
+       the last known values stay on show: the reading is the useful thing,
+       the colour is what qualifies it.
+
+       A card showing nothing but dashes is grey too, whatever its link
+       channels say: a device whose RSSI heartbeat arrives while PF, kW and
+       kWh have never reported is not a meter delivering data. */
+    const status =
+      devID && anyReading ? cardStatus(devID, newest, now) : 'offline';
 
     state.hooks.applyCard(card.uid, {
       values,
@@ -214,15 +215,10 @@ async function refresh() {
   }
 
   /* Every channel in one batched call: the three displayed ones (D30 for its
-     timestamp only), the fault channel, and whichever link channels resolved. */
+     timestamp only) and whichever link channels resolved. */
   const pairs = devices.flatMap((devID) => {
     const link = state.linkSensors.get(devID) || {};
-    const sensors = [
-      ...Object.values(SENSORS),
-      FAULT_SENSOR,
-      link.rssi,
-      link.status,
-    ];
+    const sensors = [...Object.values(SENSORS), link.rssi, link.status];
     return [...new Set(sensors.filter(Boolean))].map((sensor) => ({
       devID,
       sensor,
@@ -374,7 +370,7 @@ function reportStatus() {
 /**
  * Read the RSSI and Status channel ids off the catalogue, once at boot.
  *
- * Unlike D1/D3/D30/D6 these were never pinned to fixed ids, so they are found
+ * Unlike D1/D3/D30 these were never pinned to fixed ids, so they are found
  * by name per device. A failure here is not fatal: without them the offline
  * test falls back to the reading-age rule alone.
  */
@@ -493,7 +489,6 @@ export function auditSnapshot() {
       PF: SENSORS.PF,
       kW: SENSORS.kW,
       kWh: SENSORS.kWh,
-      fault: FAULT_SENSOR,
       rssi: link.rssi || null,
       status: link.status || null,
     };
@@ -707,7 +702,7 @@ function installHelpers() {
     console.log(`last : ${computed.last}  @ ${computed.lastAt}`);
     console.log(
       `kWh = ${computed.last} − ${computed.first} = ` +
-        `${computed.consumption.toFixed(DECIMALS)}`
+        `${formatValue(computed.consumption, PRECISION.kWh)}`
     );
     if (computed.points === 1) {
       console.warn('Only one datapoint in the window, so the delta is 0.');
